@@ -17,8 +17,8 @@ set<int> client;
 mutex m;
 
 void usage() {
-	printf("syntax : echo_server <port> [-b]\n");
-	printf("sample : echo_server 1234 -b\n");
+	printf("syntax : ssl_server <port> [-b]\n");
+	printf("sample : ssl_server 1234 -b\n");
 }
 
 int isRoot() {
@@ -113,7 +113,7 @@ int main(int argc, char *argv[]) {
 
     SSL_library_init();
     SSL_CTX *ctx = InitServerCTX();
-    LoadCertificates(ctx, "test.pem", "test.com.pem");
+    LoadCertificates(ctx, "test.com.pem", "test.com.pem");
     SSL * ssl;
 
 	int sockfd = socket(AF_INET, SOCK_STREAM, 0);
