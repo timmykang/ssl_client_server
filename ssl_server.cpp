@@ -6,14 +6,14 @@
 #include <sys/socket.h> // for socket
 #include <thread>
 #include <mutex>
-#include <set>
+#include <list>
 #include <vector>
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 
 using namespace std;
 
-set<int> client;
+list<SSL *> client;
 mutex m;
 
 void usage() {
@@ -30,12 +30,12 @@ int isRoot() {
     }
 }
 
-SSL_CTX* InitCTX(void) {
+SSL_CTX* InitServerCTX(void) {
     SSL_METHOD *method;
     SSL_CTX *ctx;
     OpenSSL_add_all_algorithms();  /* Load cryptos, et.al. */
     SSL_load_error_strings();   /* Bring in and register error messages */
-    method = TLSv1_2_client_method();  /* Create new client-method instance */
+    method = (SSL_METHOD *)TLSv1_2_server_method();  /* Create new server-method instance */
     ctx = SSL_CTX_new(method);   /* Create new context */
     if ( ctx == NULL )
     {
@@ -71,11 +71,10 @@ void relay(SSL *ssl, int flag) {
     if(SSL_accept(ssl) == -1) {
         ERR_print_errors_fp(stderr);
         m.lock();
-        client.erase(childfd);
+        client.remove(ssl);
         m.unlock();
     }
     else{
-        ShowCerts(ssl);
         while (true) {
             const static int BUFSIZE = 1024;
             char buf[BUFSIZE];
@@ -83,7 +82,7 @@ void relay(SSL *ssl, int flag) {
             ssize_t received = SSL_read(ssl, buf, BUFSIZE - 1);
             if (received == 0 || received == -1) {
                 perror("recv failed");
-                client.erase(childfd);
+                client.remove(ssl);
                 break;
             }
             m.unlock();
@@ -96,7 +95,7 @@ void relay(SSL *ssl, int flag) {
                     ssize_t sent = SSL_write(*i, buf, strlen(buf));
                     if(sent == 0) {
                         perror("send failed");
-                        client.erase(SSL_get_fd(*i));
+                        client.remove((*i));
                     }
                 }
             }
@@ -167,12 +166,12 @@ int main(int argc, char *argv[]) {
         ssl = SSL_new(ctx);
         SSL_set_fd(ssl, childfd);
         m.lock();
-        client.insert(childfd);
+        client.push_back(ssl);
         m.unlock();
         v_thread.push_back(thread(relay, ssl, flag));		
 	}
 
 	close(sockfd);
-    SSL_CTX_free(ctx)
+    SSL_CTX_free(ctx);
 }
 
